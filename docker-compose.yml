@@ -30,6 +30,8 @@ services:
     build:
       context: ./smartspreads-mcp
       dockerfile: Dockerfile
+      secrets:
+        - github_token
     container_name: smartspreads-mcp
     restart: unless-stopped
     ports:
@@ -53,6 +55,8 @@ services:
     build:
       context: ./schwab-smartspreads-file
       dockerfile: Dockerfile
+      secrets:
+        - github_token
     container_name: schwab-smartspreads-file
     restart: unless-stopped
     ports:
@@ -86,6 +90,8 @@ services:
     build:
       context: ./bullstrangle-mcp
       dockerfile: Dockerfile
+      secrets:
+        - github_token
     container_name: bullstrangle-mcp
     restart: unless-stopped
     ports:
@@ -141,3 +147,9 @@ services:
 networks:
   mcp-net:
     driver: bridge
+
+# GitHub PAT — set in environment before building:
+#   export GITHUB_TOKEN=ghp_...
+secrets:
+  github_token:
+    environment: GITHUB_TOKEN

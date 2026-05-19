@@ -6,7 +6,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-RUN git clone https://github.com/bv2026/bullstrangle-mcp.git .
+RUN --mount=type=secret,id=github_token \
+    git clone https://$(cat /run/secrets/github_token)@github.com/bv2026/bullstrangle-mcp.git .
 
 RUN pip install --no-cache-dir -e ".[excel]" mcp-proxy
 
