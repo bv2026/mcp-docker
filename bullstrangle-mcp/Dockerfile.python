@@ -1,0 +1,18 @@
+# Use this instead of Dockerfile if bullstrangle-mcp is a Python MCP server
+FROM python:3.12-slim
+
+# supergateway is Node-based; for Python servers use mcp-proxy instead
+RUN apt-get update && apt-get install -y nodejs npm && rm -rf /var/lib/apt/lists/*
+RUN npm install -g supergateway
+
+WORKDIR /app
+
+COPY app/requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY app/ ./
+
+EXPOSE 3003
+
+# Replace "python server.py" with your actual entrypoint
+ENTRYPOINT ["supergateway", "--port", "3003", "--cors", "--stdio", "python server.py"]

@@ -1,0 +1,143 @@
+services:
+
+  # ──────────────────────────────────────────────────────────────
+  # Reverse proxy — routes new MCPs by path on port 80
+  #   Dashboard: http://192.168.1.167:8080
+  #   New MCPs:  http://192.168.1.167/<mcp-name>/sse
+  # ──────────────────────────────────────────────────────────────
+  traefik:
+    image: traefik:v3
+    container_name: traefik
+    restart: unless-stopped
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --api.dashboard=true
+      - --api.insecure=true
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - mcp-net
+
+  # ──────────────────────────────────────────────────────────────
+  # Legacy MCPs — dedicated ports, no Traefik labels
+  # ──────────────────────────────────────────────────────────────
+  smartspreads-mcp:
+    build:
+      context: ./smartspreads-mcp
+      dockerfile: Dockerfile
+    container_name: smartspreads-mcp
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    volumes:
+      # C:\work\SmartSpreads\ → /data/smartspreads
+      - /data/smartspreads:/data/smartspreads
+    environment:
+      - NEWSLETTER_DATA_DIR=/data/smartspreads
+      - DATABASE_URL=sqlite:////data/smartspreads/newsletters.db
+    networks:
+      - mcp-net
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import socket; s=socket.create_connection(('localhost',3001),3); s.close()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  schwab-smartspreads-file:
+    build:
+      context: ./schwab-smartspreads-file
+      dockerfile: Dockerfile
+    container_name: schwab-smartspreads-file
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    volumes:
+      # Config files + OAuth token + SQLite db — all persisted on host
+      # C:\work\schwab-mcp-file\config\ → /data/schwab/config → /app/config
+      - /data/schwab/config:/app/config
+      # watchlist.yaml published by smartspreads-mcp (read-only)
+      - /data/smartspreads:/data/smartspreads:ro
+    environment:
+      - SCHWAB_CLIENT_ID=H4Xod2m4anSThDDAToYWJnBjKzjzoU2qOGeFt0m7j4KrGxux
+      - SCHWAB_CLIENT_SECRET=TZcdV6ym03KLbPol7tAhAvpbzrQlzakviDki4zhtdSFG82eOp7rQBkAGRUT4NnOA
+      - SCHWAB_CALLBACK_URL=https://127.0.0.1:5000/auth/callback
+      - SCHWAB_DASHBOARD_PORT=8766
+      - SCHWAB_TOKEN_PATH=/app/config/token.json
+      - SCHWAB_DB_PATH=/app/config/smartspreads.db
+      - SCHWAB_TOS_STATEMENT_PATH=/app/config/tos-statement.csv
+      - TOS_STATEMENT_PATH=/app/config/tos-statement.csv
+      - SCHWAB_WATCHLIST_CONFIG=/data/smartspreads/published/watchlist.yaml
+    networks:
+      - mcp-net
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import socket; s=socket.create_connection(('localhost',3002),3); s.close()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  bullstrangle-mcp:
+    build:
+      context: ./bullstrangle-mcp
+      dockerfile: Dockerfile
+    container_name: bullstrangle-mcp
+    restart: unless-stopped
+    ports:
+      - "3003:3003"
+    volumes:
+      # Layout: DATA_DIR=/data/bullstrangle/data
+      #   newsletters:  /data/bullstrangle/data/newsletters/
+      #   os_uploads:   /data/bullstrangle/data/os_uploads/
+      #   workbooks:    /data/bullstrangle/outputs/workbooks/  (DATA_DIR/../outputs)
+      #   database:     /data/bullstrangle/data/bullstrangle.db
+      - /data/bullstrangle:/data/bullstrangle
+    environment:
+      - BULLSTRANGLE_DATA_DIR=/data/bullstrangle/data
+    networks:
+      - mcp-net
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import socket; s=socket.create_connection(('localhost',3003),3); s.close()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # ──────────────────────────────────────────────────────────────
+  # NEW MCP TEMPLATE — copy this block for each new server
+  # Claude Desktop URL: http://192.168.1.167/<mcp-name>/sse
+  # ──────────────────────────────────────────────────────────────
+  # example-mcp:
+  #   build:
+  #     context: ./example-mcp
+  #     dockerfile: Dockerfile
+  #   container_name: example-mcp
+  #   restart: unless-stopped
+  #   # No ports: — Traefik handles routing
+  #   volumes:
+  #     - /data/example:/data/example
+  #   environment:
+  #     - EXAMPLE_VAR=value
+  #   networks:
+  #     - mcp-net
+  #   labels:
+  #     - "traefik.enable=true"
+  #     - "traefik.http.routers.example-mcp.rule=PathPrefix(`/example-mcp`)"
+  #     - "traefik.http.routers.example-mcp.middlewares=example-mcp-strip"
+  #     - "traefik.http.middlewares.example-mcp-strip.stripprefix.prefixes=/example-mcp"
+  #     - "traefik.http.services.example-mcp.loadbalancer.server.port=3000"
+  #   healthcheck:
+  #     test: ["CMD", "python3", "-c", "import socket; s=socket.create_connection(('localhost',3000),3); s.close()"]
+  #     interval: 30s
+  #     timeout: 5s
+  #     retries: 3
+  #     start_period: 15s
+
+networks:
+  mcp-net:
+    driver: bridge

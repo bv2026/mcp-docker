@@ -1,0 +1,10 @@
+# Credentials — never commit real .env files
+**/.env
+.env
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+*.swp
